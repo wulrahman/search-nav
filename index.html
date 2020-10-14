@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+  <html>
+    <style>
+    div#main-body {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: white;
+    }
+    ul#dropdown-suggestion {
+        list-style: none;
+    }
+    #main-dropbox {
+        background-color: #47555d;
+        max-width: 600px;
+        margin: -19px auto;
+        padding: 10px;
+        position: absolute;
+        left: 0;
+        right: 0;
+        opacity: 1;
+        z-index: 1;
+    }
+
+    ul#dropdown-suggestion li {
+        padding-bottom: 10px;
+        color: white;
+    }
+
+    body {
+        font-family: 'Quicksand', sans-serif;
+        font-size: 18px;
+    }
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+    
+    input {
+        outline: none;
+        border: 0;
+    }
+    nav ul {
+        list-style: none;
+    }
+    #input-container-search #main-search {
+        color: white;
+        caret-color: white;
+        background: transparent;
+        width: max-content;
+        flex: 0 0 auto;
+        min-width: 10px;
+        height: 100%;
+        white-space: nowrap;
+    }
+    #input-container-search #main-search:focus {
+      outline:none;
+    }
+    #input-container-search #main-search::placeholder {
+        color: gray;
+    }
+    #input-container-search #suggestion-container {
+        color: gray;
+        pointer-events: none;
+        width: max-content;
+        height: 100%;
+        flex: 0 0 auto;
+    }
+        
+    nav#main-nav-search {
+        padding: 20px;
+        background-color: #262d31
+    }
+
+    #input-container-search::-webkit-scrollbar {
+        width: 0px;               /* width of the entire scrollbar */
+        height: 1px;
+    }
+    #input-container-search::-webkit-scrollbar-track {
+        background-color:transparent;        /* color of the tracking area */
+    }
+    #input-container-search::-webkit-scrollbar-thumb {
+        background-color:white;    /* color of the scroll thumb */
+    }
+
+    div#main-tokens::-webkit-scrollbar {
+        width: 0px;               /* width of the entire scrollbar */
+        height: 1px;
+    }
+    div#main-tokens::-webkit-scrollbar-track {
+        background-color:transparent;        /* color of the tracking area */
+    }
+    div#main-tokens::-webkit-scrollbar-thumb {
+        background-color:gray;    /* color of the scroll thumb */
+    }
+
+    #input-container-search {
+        padding: 10px;
+        max-width: 600px;
+        margin: 0 auto;
+        overflow: scroll;
+        display: flex;
+        flex-flow: column nowrap;
+        flex-direction: row;
+        align-items: stretch;
+        align-content: flex-start;
+        list-style: none;
+        border-radius: 5px;
+        /* background-color: #262d31; */
+    }
+    div#main-tokens ul {
+        list-style: none;
+        width: max-content;
+    }
+
+    div#main-tokens #tokens li {
+        padding: 5px 15px;
+        width: max-content;
+        display: inline-block;
+        border-radius: 20px;
+        margin: 5px;
+        font-size: 15px;
+        border: 1px solid #eee;
+    }
+
+    div#main-tokens {
+        padding: 10px;
+        overflow-y: scroll;
+        height: 59px;
+    }
+    </style>
+    <header>
+      <title>Search  Navigation</title>
+      <script src="Natural-language-processing/builds/compromise.js"></script>
+      <meta type="description" content="Search  Navigation">
+    </header>
+    <body>
+        <nav id="main-nav-search">
+            <ul>
+                <li>
+                    <div id="input-container-search">
+    
+                        <div contenteditable="true" id="main-search"></div>
+                        <div id="suggestion-container"></div>
+                    </div>
+                </li>
+            </ul>
+        </nav>
+        <div id="main-dropbox">
+            <ul id="dropdown-suggestion"></ul>
+        </div>
+        <div id="main-tokens">
+            <ul class="tokens" id="tokens"></ul>
+        </div>
+        <div id="main-body">
+            <h1>Results</h1>
+            <div id="results-main"></div>
+        </div>
+    </body>
+  </html>
+<script>
+
+console.clear();
+
+class Main_class {
+
+    wordCountMap(str) {
+
+        let words = str.split(' ');
+
+        let wordCount = {};
+
+        words.forEach((w) => {
+            wordCount[w] = (wordCount[w] || 0) + 1;
+
+        });
+
+        return wordCount;
+
+    }
+
+    addWordsToDictionary(wordCountmap, dict) {
+        for(let key in wordCountmap) {
+            dict[key] = true;
+        }
+    }
+
+    wordMapToVector(map, dict) {
+
+        let wordCountVector = [];
+
+        for (let term in dict) {
+            wordCountVector.push(map[term] || 0);
+        }
+
+        return wordCountVector;
+        
+    }
+
+    dotProduct(vecA, vecB) {
+
+        let product = 0;
+
+        for(let i = 0 ; i < vecA.length; i++) {
+            product += vecA[i] * vecB[i];
+        }
+
+        return product;
+    }
+
+    magnitude(vec) {
+
+        let sum = 0;
+
+        for (let i = 0 ; i <vec.length; i++) {
+            sum += vec[i] * vec[i];
+        }
+
+        return Math.sqrt(sum);
+
+    }
+
+    cosineSimilarity(vecA,vecB){
+        return dotProduct(vecA,vecB)/ (magnitude(vecA) * magnitude(vecB));
+    }
+
+    textCosineSimilarity(txtA,txtB) {
+
+        const wordCountA = wordCountMap(txtA);
+        const wordCountB = wordCountMap(txtB);
+
+        let dict = {};
+
+        addWordsToDictionary(wordCountA,dict);
+        addWordsToDictionary(wordCountB,dict);
+
+        const vectorA = wordMapToVector(wordCountA,dict);
+        const vectorB = wordMapToVector(wordCountB,dict);
+
+        return cosineSimilarity(vectorA, vectorB);
+
+    }
+
+    getSimilarityScore(val) {
+        return Math.round(val * 100)
+    }
+
+    similarity(string1, string2) {
+
+        var longer = string1;
+        var shorter = string2;
+
+        if (string1.length < string2.length) {
+            longer = string2;
+            shorter = string1;
+        }
+
+        if (longer.length == 0) {
+            return 1.0;
+        }
+
+        return (longer.length - this.editDistance(longer, shorter)) / parseFloat(longer.length);
+
+    }
+
+    editDistance(string1, string2) {
+
+        string1 = string1.toLowerCase();
+        string2 = string2.toLowerCase();
+
+        var costs = new Array();
+
+        for (var i = 0; i <= string1.length; i++) {
+
+            var lastValue = i;
+
+            for (var j = 0; j <= string2.length; j++) {
+
+                if (i == 0) {
+                    costs[j] = j;
+                }
+                else if (j > 0) {
+
+                    var newValue = costs[j - 1];
+
+                    if (string1.charAt(i - 1) != string2.charAt(j - 1)) {
+                        newValue = Math.min(Math.min(newValue, lastValue),
+                        costs[j]) + 1;
+                    }
+
+                    costs[j - 1] = lastValue;
+                    lastValue = newValue;
+
+                }
+            }
+
+            if (i > 0) {
+                costs[string2.length] = lastValue;
+            }
+
+        }
+
+        return costs[string2.length];
+
+    }
+
+    suggested_array() {
+
+        var sort_map = [];
+        sort_map_filtered = [];
+
+        var main_search_query = main_search.innerHTML.replace(/&nbsp;/g, ' ');
+        var input_word_count = main_search_query.split(" ");
+
+        for(var key in words_array) {
+
+            var word_count = words_array[key].split(" ");
+            
+            if(words_array[key].length > main_search_query.length && input_word_count.length <= word_count.length) {
+                var word_splice = words_array[key].substring(0, main_search_query.length);
+                var similarity_score = this.similarity(main_search_query,word_splice) * 100;
+                //var similarity_score = this.getSimilarityScore(this.textCosineSimilarity(main_search_query,word_splice));
+            }
+            else {
+                var similarity_score = 0;
+            }
+
+            sort_map.push([key, similarity_score]);
+
+        }
+
+        sort_map.sort(function(a, b) {
+            a = a[1];
+            b = b[1];
+            return a > b ? -1 : (a < b ? 1 : 0);
+        });
+
+        for (var i = 0; i < sort_map.length; i++) {
+
+            var key = sort_map[i][0];
+            var value = sort_map[i][1];
+
+            if(value == 100) {
+                sort_map_filtered.push([key, words_array[key]]);
+            }
+
+        }
+
+        return sort_map_filtered;
+
+    }
+
+    dropdown_suggestions() {
+
+        dropdown_suggestion.innerHTML = "";
+
+        var suggested_length  = sort_map_filtered.length;
+        if(MAX_SUGGESTIONS < suggested_length) {
+            suggested_length = MAX_SUGGESTIONS;
+        }
+
+        for(var i = 1; i < suggested_length; i++) {
+
+            var key = sort_map_filtered[i][0];
+            var value = sort_map_filtered[i][1];
+
+            var dropdown_li = document.createElement("li");
+            dropdown_li.textContent = value;
+            dropdown_li.id = "dropbox-selection-" + i;
+
+            dropdown_li.onclick = (event) => {
+
+                var dropdown_key_event = event.target.id.replace( /^\D+/g, '');
+                var dropdown_value_event = sort_map_filtered[dropdown_key_event][1];
+
+                main_search.textContent = dropdown_value_event;
+                suggestion_element.textContent ="";
+                main_dropdown.style.display = "none";
+
+            };
+
+            dropdown_suggestion.appendChild(dropdown_li);
+
+        }
+
+    }
+
+    main_search_width(viod) {
+
+        if(main_search.textContent.length == 0) {
+            main_search.style.width = "100%";
+        }
+        else {
+            main_search.style.width = "auto";
+            main_dropdown.style.display = "block";
+        }
+
+        if (main_search.textContent.length == 0 || sort_map_filtered.length <= 1) {
+            main_dropdown.style.display = "none";
+        }
+
+    }
+
+    setEndOfContenteditable(contentEditableElement) {
+        var range,selection;
+        if(document.createRange)//Firefox, Chrome, Opera, Safari, IE 9+
+        {
+            range = document.createRange();//Create a range (a range is a like the selection but invisible)
+            range.selectNodeContents(contentEditableElement);//Select the entire contents of the element with the range
+            range.collapse(false);//collapse the range to the end point. false means collapse to end rather than the start
+            selection = window.getSelection();//get the selection object (allows you to change selection)
+            selection.removeAllRanges();//remove any selections already made
+            selection.addRange(range);//make the range you have just created the visible selection
+        }
+        else if(document.selection)//IE 8 and lower
+        { 
+            range = document.body.createTextRange();//Create a range (a range is a like the selection but invisible)
+            range.moveToElementText(contentEditableElement);//Select the entire contents of the element with the range
+            range.collapse(false);//collapse the range to the end point. false means collapse to end rather than the start
+            range.select();//Select the range (make it the visible selection
+        }
+
+    }
+
+    in_range(x, min, max) {
+        return x >= min && x <= max;
+    }
+
+}
+
+main_class = new Main_class();
+ 
+const main_search = document.getElementById("main-search");
+const dropdown_suggestion = document.getElementById("dropdown-suggestion");
+
+const suggestion_element = document.getElementById("suggestion-container");
+const main_dropdown = document.getElementById("main-dropbox");
+const input_container_search = document.getElementById("input-container-search");
+const main_nav_search = document.getElementById("main-nav-search");
+const results_main = document.getElementById("results-main");
+
+
+
+const ENTER_KEYCODE = 13;
+const TAB_KEYCODE = 9;
+const BACKSPACE_KEYCODE = 8;
+const UP_ARROW_KEYCODE = 38;
+const DOWN_ARROW_KEYCODE = 40;
+const SPACE_KEYCODE = 32;
+const MAX_SUGGESTIONS = 8;
+
+
+var tokens_main = document.getElementById("tokens");
+
+natural_language_processing();
+
+function natural_language_processing() {
+
+    tokens_main.innerHTML = "";
+
+    let doc = nlp(main_search.textContent);
+    var full_NLP = [];
+    full_NLP['main'] = doc.terms().json();
+    full_NLP['clauses'] = doc.clauses().json();
+    full_NLP['hyphenated'] = doc.hyphenated().json();
+    full_NLP['phoneNumbers'] = doc.phoneNumbers().json();
+    full_NLP['hashTagss'] = doc.hashTags().json();
+    full_NLP['emails'] = doc.emails().json();
+    full_NLP['emoticons'] = doc.emoticons().json();
+    full_NLP['emojis'] = doc.emojis().json();
+    full_NLP['atMentions'] = doc.atMentions().json();
+    full_NLP['urls'] = doc.urls().json();
+    full_NLP['adverbs'] = doc.adverbs().json();
+    full_NLP['pronouns'] = doc.pronouns().json();
+    full_NLP['conjunctions'] = doc.conjunctions().json();
+    full_NLP['prepositions'] = doc.prepositions().json();
+    full_NLP['abbreviations'] = doc.abbreviations().json();
+    full_NLP['people'] = doc.people().json();
+    full_NLP['places'] = doc.places().json();
+    full_NLP['organizations'] = doc.organizations().json();
+    full_NLP['topics'] = doc.topics().json();
+
+    full_NLP['topics'].forEach(function(item, index) {
+
+        var tokens_li = document.createElement("li");
+        tokens_li.id =  "tokens-NLP-" + index;
+        
+        tokens_li.textContent = item.text;
+        tokens_main.append(tokens_li);
+        //p.pos.tag
+
+    });
+
+    full_NLP['emojis'].forEach(function(item, index) {
+
+        var tokens_li = document.createElement("li");
+        tokens_li.id =  "tokens-NLP-" + index;
+
+        tokens_li.textContent = item.text;
+        tokens_main.append(tokens_li);
+        //p.pos.tag
+
+    });
+
+
+    // full_NLP['emoticons'].forEach(function(item, index) {
+
+    //     var tokens_li = document.createElement("li");
+    //     tokens_li.id =  "tokens-NLP-" + index;
+
+    //     tokens_li.textContent = item.text;
+    //     tokens_main.append(tokens_li);
+    //     //p.pos.tag
+
+    // });
+
+    full_NLP['phoneNumbers'].forEach(function(item, index) {
+
+        var tokens_li = document.createElement("li");
+        tokens_li.id =  "tokens-NLP-" + index;
+
+        tokens_li.textContent = item.text;
+        tokens_main.append(tokens_li);
+        //p.pos.tag
+
+    });
+
+    full_NLP['emails'].forEach(function(item, index) {
+
+        var tokens_li = document.createElement("li");
+        tokens_li.id =  "tokens-NLP-" + index;
+
+        tokens_li.textContent = item.text;
+        tokens_main.append(tokens_li);
+        //p.pos.tag
+
+    });
+
+    full_NLP['urls'].forEach(function(item, index) {
+
+        var tokens_li = document.createElement("li");
+        tokens_li.id =  "tokens-NLP-" + index;
+
+        tokens_li.textContent = item.text;
+        tokens_main.append(tokens_li);
+        //p.pos.tag
+
+    });
+
+    full_NLP['hyphenated'].forEach(function(item, index) {
+
+        var tokens_li = document.createElement("li");
+        tokens_li.id =  "tokens-NLP-" + index;
+
+        tokens_li.textContent = item.text;
+        tokens_main.append(tokens_li);
+        //p.pos.tag
+
+    });
+
+    full_NLP['clauses'].forEach(function(item, index) {
+
+        var tokens_li = document.createElement("li");
+        tokens_li.id =  "tokens-NLP-" + index;
+
+        tokens_li.textContent = item.text;
+        tokens_main.append(tokens_li);
+        //p.pos.tag
+
+    });
+
+    full_NLP['hashTagss'].forEach(function(item, index) {
+
+        var tokens_li = document.createElement("li");
+        tokens_li.id =  "tokens-NLP-" + index;
+
+        tokens_li.textContent = item.text;
+        tokens_main.append(tokens_li);
+        //p.pos.tag
+
+    });
+
+    var query_bilder = full_NLP['topics'].map(event => event.text).join(' + ');
+
+}
+ 
+let words_array_raw = [
+    "Keyword",
+    "facebook",
+    "youtube",
+    "amazon",
+    "pornhub",
+    "gmail",
+    "google",
+    "weather",
+    "ebay",
+    "yahoo",
+    "xnxx",
+    "walmart",
+    "yahoo mail",
+    "google translate",
+    "google maps",
+    "xvideos",
+    "craigslist",
+    "netflix",
+    "google docs",
+    "translate",
+    "home depot",
+    "news",
+    "fox news",
+    "calculator",
+    "usps tracking",
+    "cnn",
+    "hotmail",
+    "google drive",
+    "maps",
+    "paypal",
+    "porn",
+    "xhamster",
+    "lowes",
+    "instagram",
+    "msn",
+    "amazon prime",
+    "target",
+    "espn",
+    "zillow",
+    "bank of america",
+    "wells fargo",
+    "xvideo",
+    "twitter",
+    "google classroom",
+    "indeed",
+    "best buy",
+    "porn hub",
+    "speed test",
+    "linkedin",
+    "aol mail",
+    "hulu",
+    "you tube",
+    "chaturbate",
+    "pinterest",
+    "trump",
+    "nba",
+    "roblox",
+    "capital one",
+    "traductor",
+    "nfl",
+    "facebook login",
+    "costco",
+    "youtube to mp3",
+    "ups tracking",
+    "chase",
+    "kohls",
+    "reddit",
+    "google flights",
+    "american airlines",
+    "bing",
+    "etsy",
+    "twitch",
+    "dominos",
+    "airbnb",
+    "spotify",
+    "fedex tracking",
+    "redtube",
+    "nfl scores",
+    "restaurants near me",
+    "macys",
+    "aol",
+    "google scholar",
+    "pizza hut",
+    "free porn",
+    "women's world cup 2019",
+    "usps",
+    "expedia",
+    "discord",
+    "credit karma",
+    "outlook",
+    "youporn",
+    "southwest airlines",
+    "verizon",
+    "walgreens",
+    "harbor freight",
+    "entertainment",
+    "pandora",
+    "bed bath and beyond",
+    "united airlines",
+    "turbotax",
+    "facebook log in",
+    "when are the nba playoffs",
+    "what is my ip address",
+    "where’s my refund",
+    "what is love",
+    "how to draw",
+    "where am i",
+    "how many weeks in a year",
+    "when are the early signs of pregnancy",
+    "is mercury in retrograde",
+    "who called me",
+    "Covid - 19",
+    "Coronavirus disease (COVID-19) pandemic",
+    "WHO Director-General's opening remarks at the media briefing on COVID-19 - 2 October 2020",
+    "article",
+	"html",
+	"css",
+	"javascript",
+	"jquery",
+	"ajax",
+	"react",
+	"angular",
+	"node js",
+	"express js",
+	"redux",
+	"chart js",
+	"bootstrap",
+	"php",
+	"yii",
+	"laravel",
+	"codigniter",
+	"mysql",
+	"mongo db",
+	"asp .net",
+	"java",
+	"python",
+	"django",
+	"ruby",
+	"c++",
+	"webpack",
+	"hammer js",
+	"http",
+	"server",
+	"programming",
+	"artificial inteligence",
+	"development",
+	"website",
+	"app",
+	"frontend",
+	"backend",
+	"cross platform",
+	"xml",
+	"api",
+	"algorithm",
+	"ssl",
+	"enrypt",
+	"decrypt",
+	"code",
+    "apple",
+    "How to change &nbsp; in html"
+];
+
+var words_array = [];
+for (var i = 0; i < words_array_raw.length; i++) {
+    words_array.push(words_array_raw[i].toLowerCase().replace(/[^\w\s]/gi, ''));
+}
+
+let suggested_word = "";
+var sort_map_filtered = [];
+let suggestion_index = 0;
+let insertText = false;
+
+main_class.main_search_width();
+
+input_container_search.onclick = (event) => {
+    main_search.focus();
+}
+
+main_nav_search.onclick = (event) => {
+    main_search.focus();
+}
+
+main_search.onfocus = (event) => {
+    main_class.setEndOfContenteditable(main_search);
+}
+
+main_search.oninput = (event) => {
+
+    main_search.innerHTML = main_search.innerHTML.replace(/(<([^>]+)>)/gi, "");
+    main_class.setEndOfContenteditable(main_search);
+
+	var sort_map_filtered = main_class.suggested_array();
+
+    suggested_word = "";
+    if(sort_map_filtered[0] != undefined) {
+        suggested_word = sort_map_filtered[0][1];
+    }
+
+    if (main_search.textContent.length == 0 || sort_map_filtered.length == 0) {
+		suggestion_element.textContent = "";
+	}
+    else if (suggested_word != undefined) {
+        suggestion_element.innerHTML = suggested_word.substring(main_search.textContent.length, suggested_word.length).replace(' ', '&nbsp;');
+    }
+
+    // results_main.innerHTML = "";
+    
+    // url_json_api_query = 'http://localhost/?action=json&q=' + encodeURIComponent(main_search.textContent) + '&limit=10&page=1&page_content=';
+
+    // fetch(url_json_api_query).then((resp) => resp.json()).then(function(data) {
+
+    //     if(data.length > 0) {
+ 
+    //         data.forEach(function (item, index) {
+    //             var results_li = document.createElement("li");
+    //             var results_image_li = document.createElement("img");
+
+    //             results_li.id =  "results-" + index;
+
+    //             results_image_li.id =  "image-result-" + index;
+
+
+    //             results_image_li.src = item.thumb.replace(/\\(.)/mg, "$1");
+    //             results_li.textContent = item.title;
+    //             results_main.append(results_image_li);
+
+    //             results_main.append(results_li);
+
+
+    //         });
+
+    //     }
+
+    
+    // });
+    
+    main_class.dropdown_suggestions();
+
+    main_class.main_search_width();
+
+    natural_language_processing();
+
+};
+
+String.prototype.stripSlashes = function(){
+    return this.replace(/\\(.)/mg, "$1");
+}
+ 
+main_search.onkeydown = (event) => {
+
+    if(event.keyCode == ENTER_KEYCODE) {
+        event.preventDefault();
+    }
+
+	if (main_search.textContent.length > 0) {
+
+        if (event.keyCode == UP_ARROW_KEYCODE) {
+            suggestion_index--;
+        }
+        else if (event.keyCode == DOWN_ARROW_KEYCODE) {
+            suggestion_index++;
+        }
+        
+        if ((event.keyCode == TAB_KEYCODE || event.keyCode == ENTER_KEYCODE)) {
+            event.preventDefault();
+            if (suggested_word != undefined || suggested_word != "") {
+                main_search.textContent = suggested_word;
+            }
+            main_dropdown.style.display = "none";
+            suggestion_element.textContent = "";
+		}
+        else if(event.keyCode == UP_ARROW_KEYCODE || event.keyCode == DOWN_ARROW_KEYCODE) {
+            if(!main_class.in_range(suggestion_index, 0, sort_map_filtered.length - 1)) {
+                suggestion_index = 0;
+            }
+            suggested_word = sort_map_filtered[suggestion_index][1];
+            suggestion_element.innerHTML = suggested_word.substring(main_search.textContent.length, suggested_word.length).replace(' ', '&nbsp;');
+        }
+       
+    }
+    
+
+    main_class.main_search_width();
+
+
+};
+
+</script>
